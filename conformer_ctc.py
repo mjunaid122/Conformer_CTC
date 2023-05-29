@@ -25,9 +25,9 @@ root_path = os.getcwd()
 print(root_path)
 
 torch.autograd.set_detect_anomaly(True)
-
-
+##########################
 spect_func = torchaudio.transforms.Spectrogram()
+##########################
 class DataSubsampling(nn.Module):
     '''
     this class will downsample data
@@ -43,6 +43,8 @@ class DataSubsampling(nn.Module):
         return self.sequential(x)
 
 data_subsampling = DataSubsampling(kernel_size=(2, 2))
+
+##########################
 
 def transform_audio(audio_pack):
     '''
@@ -117,12 +119,13 @@ class LibriSpeechDataset(torch.utils.data.Dataset):
     def __getitem__(self, n):
         fileid, path = self._walker[n]
         return load_librispeech_item(fileid, path, self._ext_audio, self._ext_txt)
-      
+     
+##########################
       train_set = LibriSpeechDataset('train')
       dev_set = LibriSpeechDataset('dev')
       test_set = LibriSpeechDataset('test')
       len(train_set), len(dev_set), len(test_set)
-      
+##########################      
       def padify(batch):
     return (
         pad_sequence([i[0] for i in batch], batch_first=True),
@@ -138,6 +141,9 @@ class LibriSpeechDataset(torch.utils.data.Dataset):
     # get a sample data
     it = iter(train_loader)
     sample, trans = next(it)
+    
+ ##########################
+
     alphabet = pickle.load(open("librispeech_alphabet.pkl", "rb"))
     print("Alphabet:", alphabet)
 
@@ -166,13 +172,13 @@ def decode_string(a):
     except:
         pass
     return ''.join([vocab.lookup_token(i) for i in a if (i > 0 and i < n_class)])
-  
+##########################  
   def make_target(transcript, device):
     encoded = encode_string(transcript)
     target_length = torch.LongTensor([i.size(0) for i in encoded])
     target = torch.nn.utils.rnn.pad_sequence(encoded)
     return target.permute(1, 0).to(device), target_length.to(device)
-
+##########################
   def make_input(specs, device):
     '''
         specs: (batch, time step, feature)
@@ -181,7 +187,7 @@ def decode_string(a):
     input_length = torch.full(size=(batch,),
                              fill_value=time_step, dtype=torch.long)
     return specs.to(device), input_length.to(device)
-  
+##########################  
   def plot_spectrogram(list_spec, title=None, ylabel='freq_bin', aspect='auto', xmax=None, ymax=None):
     fig, axs = plt.subplots(ncols=len(list_spec), figsize=(7 * len(list_spec), 5))
     for i, (spec, name) in enumerate(list_spec):
@@ -195,14 +201,14 @@ def decode_string(a):
             axs[i].set_ylim((0, ymax))
     fig.colorbar(im, ax=axs)
     plt.show(block=False)
-    
+##########################    
     # get sample data
       k = iter(train_loader)
       dat, trans = next(k)
       spec, trans = train_set[0]
-      
+##########################      
       class ConformerCTC(nn.Module):
-    def __init__(self,
+            def __init__(self,
 #                  freq_mask: int = 27,
 #                  time_mask_ratio: float = 0.05,
                  **kwargs):
@@ -217,14 +223,14 @@ def decode_string(a):
 #         inputs = self.spec_aug(inputs)
         outputs, output_lengths = self.encoder(inputs, input_length)
         return outputs, output_lengths
-  
+ ########################## 
     import torch
     import matplotlib.pyplot as plt
     import numpy as np
-    
+ ##########################   
     # Load state dict
 checkpoint = torch.load('conformer-ctc-model/conformer_ctc_subsampling.state')
-
+##########################
 x = np.arange(len(checkpoint['loss_history'])) + 1
 plt.plot(x, checkpoint['loss_history'])
 plt.xticks(x, x)
@@ -232,7 +238,7 @@ plt.xlabel('Epochs', fontsize=12)
 plt.ylabel('Sum loss', fontsize=12)
 plt.grid(True, alpha=0.5, ls='-.')
 plt.show()
-
+##########################
 hyp = dict(
     num_classes=n_class,
     input_dim=spec.size(-1),
@@ -245,7 +251,7 @@ hyp = dict(
 # freq_mask=27, time_mask_ratio=0.05, 
 model = ConformerCTC(**hyp).to(device)
 model.load_state_dict(checkpoint['model_state_dict'])
-
+##########################
 n_iters = 15
 optimizer = torch.optim.Adam(model.parameters(), betas=(0.9, 0.98), lr=0.001,
                              eps=1e-9, weight_decay=1e-6)
@@ -253,7 +259,7 @@ optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, total_iters=n_iters)
 scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
 cal_loss = nn.CTCLoss(zero_infinity=True).to(device)
-
+##########################
 # define decoder
 ken_lm_path = '../input/librispeech-4gram-language-model/4-gram.arpa'
 
@@ -269,7 +275,7 @@ decoder = CTCBeamDecoder(
     blank_id=0,
     log_probs_input=True
 )
-
+##########################
 def train_epoch(model, optimizer, cal_loss, scheduler, data_loader, epoch):
     size = len(data_loader.dataset)
     model.train()
@@ -297,10 +303,10 @@ def train_epoch(model, optimizer, cal_loss, scheduler, data_loader, epoch):
         
     scheduler.step()
     return sum_loss
-
+##########################
   plot_spectrogram([(spec, 'Origin'), (spec, 'Subsampled')],
                  xmax=spec.size(1), ymax=spec.size(0))
-  
+ ########################## 
   cal_wer = torchaudio.functional.edit_distance
 
 def eval_epoch(model, cal_loss, data_loader, epoch):
@@ -343,7 +349,7 @@ def eval_epoch(model, cal_loss, data_loader, epoch):
         loss=sum_loss / size,
         wer=sum_wer / size
     )
-  
+ ########################## 
   loss_history = checkpoint['loss_history']
 # loss_history = []
 mean_wer_history = checkpoint['mean_wer_history']
@@ -371,7 +377,9 @@ for it in tqdm(range(start_epoch + 1, n_iters)):
         loss_history=loss_history,
         mean_wer_history=mean_wer_history
     ), root_path + '/conformer_ctc_subsampling.state')
-    
+  ##########################  
     eval_epoch(model, cal_loss, train_loader, 0)
+    ##########################
     eval_epoch(model, cal_loss, dev_loader, 0)
+    ##########################
     eval_epoch(model, cal_loss, test_loader, 0)
